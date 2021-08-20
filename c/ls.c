@@ -10,50 +10,78 @@ typedef struct
 {
     int orderBySize;
 
-} options;
+} option_param_t;
 
-
+static void processLoop(char *dirName);
 static int countDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader);
-static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *absDir);
+static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path);
 static void printDirectoryEntries(entry_t entries[], int numEntries);
-static char *formatDirectoryParmeters(int argc, char **argv);
+static char *formatDirectoryParmeters(char *dirName);
 static int qsortCompareName(const void *a, const void *b);
 static int qsortCompareSize(const void *a, const void *b);
 static void sortEntries(entry_t entries[], int numEntries);
+static void toggleOptions(int argc, char **argv);
+
+static option_param_t options;
+static int numOfDirectoryParms;
 
 int main(int argc, char **argv)
 {
-    DIR *directoryPointer;
-    struct dirent *directoryReader;
-    int numEntries;
-    char *option;
-    int o;
-
-    while((o = getopt(argc, argv, option)) != -1){
-
-    } 
-
-    char *absDir = formatDirectoryParmeters(argc, argv);
-    directoryPointer = opendir(absDir);
-    numEntries = countDirectoryEntries(directoryPointer, directoryReader);
+    options.orderBySize = 0;
+    toggleOptions(argc, argv);
+    numOfDirectoryParms = argc - optind;
+    do
+    {
+        processLoop(argv[optind]);
+        printf("\n\n");
+        numOfDirectoryParms = argc - ++optind;
+    } while (numOfDirectoryParms > 0);
     
-    entry_t entries[numEntries];
-    rewinddir(directoryPointer); 
-    populateDirectoryEntries(directoryPointer, directoryReader, entries, absDir);
-    sortEntries(entries, numEntries);
-    printDirectoryEntries(entries, numEntries);
-    closedir(directoryPointer);
     return 0;
 }
 
-static char *formatDirectoryParmeters(int argc, char **argv)
+static void processLoop(char *dirName)
 {
-    if(argc > 1){
-        char *dirName = argv[1];
-        while(*++dirName != '\0');   
-        if(*--dirName != '/')
-            return strcat(argv[1], "/");
-        return argv[1];
+    DIR *directoryPointer;
+    struct dirent *directoryReader;
+    
+    char *path = formatDirectoryParmeters(dirName);
+    directoryPointer = opendir(path);
+    int numEntries = countDirectoryEntries(directoryPointer, directoryReader);
+    
+    entry_t entries[numEntries];
+    rewinddir(directoryPointer); 
+    populateDirectoryEntries(directoryPointer, directoryReader, entries, path);
+    sortEntries(entries, numEntries);
+    printDirectoryEntries(entries, numEntries);
+    closedir(directoryPointer);
+}
+
+static void toggleOptions(int argc, char **argv)
+{
+    int c;
+
+    while((c = getopt(argc, argv, "S")) != -1){
+        switch (c)
+        {
+        case 'S':
+            options.orderBySize = 1;
+            break;
+        
+        default:
+            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S. \n");
+            break;
+        }
+
+    } 
+}
+
+static char *formatDirectoryParmeters(char *dirName)
+{
+    if(numOfDirectoryParms > 0){ 
+        if(dirName[strlen(dirName)-1] != '/')
+            return strcat(dirName, "/");
+        return dirName;
     } else {
         return "./";
     }
@@ -68,14 +96,14 @@ static int countDirectoryEntries(DIR *directoryPointer, struct dirent *directory
     return count;
 }
 
-static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *absDir)
+static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path)
 {
     struct stat stat_buf;
     char full_name[NAME_MAX];
     
     while((directoryReader = readdir(directoryPointer)) != NULL){
         strcpy(entries->fileName, directoryReader->d_name);
-        sprintf(full_name, "%s%s", absDir, entries->fileName);
+        sprintf(full_name, "%s%s", path, entries->fileName);
         stat(full_name, &stat_buf);
         entries->fileSize = stat_buf.st_size;
         entries++;
@@ -84,7 +112,12 @@ static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *direc
 
 static void sortEntries(entry_t entries[], int numEntries)
 {
-    qsort(entries, numEntries, sizeof(entries[0]), qsortCompareSize);
+    if(options.orderBySize){
+        qsort(entries, numEntries, sizeof(entries[0]), qsortCompareSize);
+    } else {
+        qsort(entries, numEntries, sizeof(entries[0]), qsortCompareName);
+    }
+    
 }
 
 static void printDirectoryEntries(entry_t entries[], int numEntries)
