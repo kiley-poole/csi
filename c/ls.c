@@ -7,6 +7,8 @@ typedef struct
     mode_t mode;    
     gid_t  gid;
     uid_t  uid;
+    blkcnt_t blocks;
+    struct timespec modTime;
 
 } entry_t;
 
@@ -15,6 +17,7 @@ typedef struct
     int orderBySize;
     int showAll;
     int longFormat;
+    int blockCount;
 
 } option_param_t;
 
@@ -22,7 +25,7 @@ static void toggleOptions(int argc, char **argv);
 static void processLoop(char *path);
 static void formatDirectoryParmeter(char *path, char *formattedPath);
 static int  countDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader);
-static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path);
+static int  populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path);
 static void printDirectoryEntries(entry_t entries[], int numEntries);
 static int  qsortCompareName(const void *a, const void *b);
 static int  qsortCompareSize(const void *a, const void *b);
@@ -30,6 +33,7 @@ static void sortEntries(entry_t entries[], int numEntries);
 static char *formatColor(mode_t entryMode);
 static char *getUserName(uid_t uid);
 static char *getGroupName(gid_t gid);
+static char *getDateTime(struct timespec modTime);
 
 static option_param_t options;
 static int numOfDirectoryParms;
@@ -40,6 +44,7 @@ int main(int argc, char **argv)
     options.orderBySize = 0;
     options.showAll = 0;
     options.longFormat = 0;
+    options.blockCount = 0;
     toggleOptions(argc, argv);
 
     numOfDirectoryParms = argc - optind;
@@ -58,7 +63,7 @@ static void toggleOptions(int argc, char **argv)
 {
     int c;
 
-    while((c = getopt(argc, argv, "Sal")) != -1){
+    while((c = getopt(argc, argv, "Sals")) != -1){
         switch (c)
         {
         case 'S':
@@ -70,8 +75,11 @@ static void toggleOptions(int argc, char **argv)
         case 'l':
             options.longFormat = 1;
             break;
+        case 's':
+            options.blockCount = 1;
+            break;
         default:
-            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S - Sort by Size, a - show all, l - long format. \n");
+            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S - Sort by Size, a - show all, l - long format, s - block count \n");
             break;
         }
 
@@ -83,6 +91,7 @@ static void processLoop(char *path)
     DIR *directoryPointer;
     struct dirent *directoryReader;
     char formattedPath[NAME_MAX];
+    int totalBlocks;
     
     formatDirectoryParmeter(path, formattedPath);
     directoryPointer = opendir(formattedPath);
@@ -91,9 +100,10 @@ static void processLoop(char *path)
     entry_t entries[numEntries];
 
     rewinddir(directoryPointer); 
-    populateDirectoryEntries(directoryPointer, directoryReader, entries, formattedPath);
+    totalBlocks = populateDirectoryEntries(directoryPointer, directoryReader, entries, formattedPath);
     sortEntries(entries, numEntries);
-    printf("%s\n", formattedPath);
+    printf("%s%s:\n", WHITE, formattedPath);
+    printf("total %d\n", totalBlocks);
     printDirectoryEntries(entries, numEntries);
     closedir(directoryPointer);
 }
@@ -118,10 +128,11 @@ static int countDirectoryEntries(DIR *directoryPointer, struct dirent *directory
     return count;
 }
 
-static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path)
+static int populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path)
 {
     struct stat stat_buf;
     char full_name[NAME_MAX];
+    int totalBlocks;
     
     while((directoryReader = readdir(directoryPointer)) != NULL){
         strcpy(entries->fileName, directoryReader->d_name);
@@ -131,8 +142,13 @@ static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *direc
         entries->mode = stat_buf.st_mode;
         entries->gid = stat_buf.st_gid;
         entries->uid = stat_buf.st_uid;
+        entries->modTime = stat_buf.st_mtim;
+        entries->blocks = stat_buf.st_blocks / 2;
+        totalBlocks += stat_buf.st_blocks / 2;
         entries++;
     }
+
+    return totalBlocks;
 }
 
 static void sortEntries(entry_t entries[], int numEntries)
@@ -147,15 +163,20 @@ static void sortEntries(entry_t entries[], int numEntries)
 
 static void printDirectoryEntries(entry_t entries[], int numEntries)
 {
-    char *color, *userName, *groupName;    
+    char *color, *userName, *groupName, *modTimeStamp;    
 
     for(int i = 0; i < numEntries; i++){
         printf("%s", WHITE);
 
+        if(options.blockCount){
+            printf("%ld ", entries[i].blocks);
+        }
+
         if(options.longFormat){
             userName = getUserName(entries[i].uid);
             groupName = getGroupName(entries[i].gid);
-            printf("%s %s %10d", userName, groupName, (int) entries[i].fileSize);
+            modTimeStamp = getDateTime(entries[i].modTime);
+            printf("%s %s %10d %s", userName, groupName, (int) entries[i].fileSize, modTimeStamp);
         }
 
         if(*entries[i].fileName != '.' || options.showAll){
@@ -207,5 +228,11 @@ static char *getGroupName(gid_t gid)
     struct group *group;
     group = getgrgid(gid);
     return group->gr_name;
+}
 
+static char *getDateTime(struct timespec modTime)
+{
+    char *stringTime;
+    strftime(stringTime, 100, "%b %y %H:%M", gmtime(&modTime.tv_sec));
+    return stringTime;
 }
