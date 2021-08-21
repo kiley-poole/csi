@@ -34,9 +34,12 @@ static char *formatColor(mode_t entryMode);
 static char *getUserName(uid_t uid);
 static char *getGroupName(gid_t gid);
 static char *getDateTime(struct timespec modTime);
+static void printPermissions(mode_t entryMode);
 
 static option_param_t options;
 static int numOfDirectoryParms;
+static int userPad;
+static int groupPad;
 
 int main(int argc, char **argv)
 {
@@ -169,19 +172,20 @@ static void printDirectoryEntries(entry_t entries[], int numEntries)
         printf("%s", WHITE);
 
         if(options.blockCount){
-            printf("%ld ", entries[i].blocks);
+            printf("%2ld ", entries[i].blocks);
         }
 
         if(options.longFormat){
             userName = getUserName(entries[i].uid);
             groupName = getGroupName(entries[i].gid);
             modTimeStamp = getDateTime(entries[i].modTime);
-            printf("%s %s %10d %s", userName, groupName, (int) entries[i].fileSize, modTimeStamp);
+            printPermissions(entries[i].mode);
+            printf(" %10s %10s %10d %s", userName, groupName, (int) entries[i].fileSize, modTimeStamp);
         }
 
         if(*entries[i].fileName != '.' || options.showAll){
             color = formatColor(entries[i].mode);
-            printf("%s %s \n", color, entries[i].fileName);
+            printf("%s %-100s \n", color, entries[i].fileName);
         }
     }
 }
@@ -233,6 +237,21 @@ static char *getGroupName(gid_t gid)
 static char *getDateTime(struct timespec modTime)
 {
     char *stringTime;
-    strftime(stringTime, 100, "%b %y %H:%M", gmtime(&modTime.tv_sec));
+    strftime(stringTime, 100, "%b %y %H:%M", localtime(&modTime.tv_sec));
     return stringTime;
+}
+
+//https://stackoverflow.com/questions/10323060/printing-file-permissions-like-ls-l-using-stat2-in-c
+static void printPermissions(mode_t entryMode)
+{
+    printf( (S_ISDIR(entryMode)) ? "d" : "-");
+    printf( (entryMode & S_IRUSR) ? "r" : "-");
+    printf( (entryMode & S_IWUSR) ? "w" : "-");
+    printf( (entryMode & S_IXUSR) ? "x" : "-");
+    printf( (entryMode & S_IRGRP) ? "r" : "-");
+    printf( (entryMode & S_IWGRP) ? "w" : "-");
+    printf( (entryMode & S_IXGRP) ? "x" : "-");
+    printf( (entryMode & S_IROTH) ? "r" : "-");
+    printf( (entryMode & S_IWOTH) ? "w" : "-");
+    printf( (entryMode & S_IXOTH) ? "x" : "-");
 }
