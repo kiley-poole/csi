@@ -9,29 +9,33 @@ typedef struct
 typedef struct
 {
     int orderBySize;
+    int showAll;
 
 } option_param_t;
 
-static void processLoop(char *dirName);
+static void toggleOptions(int argc, char **argv);
+static void processLoop(char *path);
 static int countDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader);
 static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path);
 static void printDirectoryEntries(entry_t entries[], int numEntries);
-static char *formatDirectoryParmeters(char *dirName);
+static void formatDirectoryParmeter(char *path, char *formattedPath);
 static int qsortCompareName(const void *a, const void *b);
 static int qsortCompareSize(const void *a, const void *b);
 static void sortEntries(entry_t entries[], int numEntries);
-static void toggleOptions(int argc, char **argv);
 
 static option_param_t options;
 static int numOfDirectoryParms;
 
 int main(int argc, char **argv)
 {
+
     options.orderBySize = 0;
+    options.showAll = 0;
     toggleOptions(argc, argv);
+
     numOfDirectoryParms = argc - optind;
     do
-    {
+    {   
         processLoop(argv[optind]);
         printf("\n\n");
         numOfDirectoryParms = argc - ++optind;
@@ -40,50 +44,54 @@ int main(int argc, char **argv)
     return 0;
 }
 
-static void processLoop(char *dirName)
-{
-    DIR *directoryPointer;
-    struct dirent *directoryReader;
-    
-    char *path = formatDirectoryParmeters(dirName);
-    directoryPointer = opendir(path);
-    int numEntries = countDirectoryEntries(directoryPointer, directoryReader);
-    
-    entry_t entries[numEntries];
-    rewinddir(directoryPointer); 
-    populateDirectoryEntries(directoryPointer, directoryReader, entries, path);
-    sortEntries(entries, numEntries);
-    printDirectoryEntries(entries, numEntries);
-    closedir(directoryPointer);
-}
-
 static void toggleOptions(int argc, char **argv)
 {
     int c;
 
-    while((c = getopt(argc, argv, "S")) != -1){
+    while((c = getopt(argc, argv, "Sa")) != -1){
         switch (c)
         {
         case 'S':
             options.orderBySize = 1;
             break;
-        
+        case 'a':
+            options.showAll = 1;
+            break;
         default:
-            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S. \n");
+            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S - Sort by Size, a - show all. \n");
             break;
         }
 
     } 
 }
 
-static char *formatDirectoryParmeters(char *dirName)
+static void processLoop(char *path)
 {
-    if(numOfDirectoryParms > 0){ 
-        if(dirName[strlen(dirName)-1] != '/')
-            return strcat(dirName, "/");
-        return dirName;
+    DIR *directoryPointer;
+    struct dirent *directoryReader;
+    char formattedPath[NAME_MAX];
+    
+    formatDirectoryParmeter(path, formattedPath);
+    directoryPointer = opendir(formattedPath);
+    int numEntries = countDirectoryEntries(directoryPointer, directoryReader);
+    
+    entry_t entries[numEntries];
+
+    rewinddir(directoryPointer); 
+    populateDirectoryEntries(directoryPointer, directoryReader, entries, formattedPath);
+    sortEntries(entries, numEntries);
+    printDirectoryEntries(entries, numEntries);
+    closedir(directoryPointer);
+}
+
+static void formatDirectoryParmeter(char *path, char *formattedPath)
+{
+    if(numOfDirectoryParms > 0){
+        strcpy(formattedPath, path); 
+        if(path[strlen(path)-1] != '/')
+            strcat(formattedPath, "/");
     } else {
-        return "./";
+        strcpy(formattedPath, "./"); 
     }
 }
 
@@ -123,7 +131,9 @@ static void sortEntries(entry_t entries[], int numEntries)
 static void printDirectoryEntries(entry_t entries[], int numEntries)
 {
     for(int i = 0; i < numEntries; i++){
-        printf("%10d %s \n", entries[i].fileSize, entries[i].fileName);
+        if(*entries[i].fileName != '.' || options.showAll){
+            printf("%10d %s \n", entries[i].fileSize, entries[i].fileName);
+        }
     }
 }
 
