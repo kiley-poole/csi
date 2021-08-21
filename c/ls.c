@@ -14,19 +14,22 @@ typedef struct
 {
     int orderBySize;
     int showAll;
+    int longFormat;
 
 } option_param_t;
 
 static void toggleOptions(int argc, char **argv);
 static void processLoop(char *path);
-static int countDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader);
+static void formatDirectoryParmeter(char *path, char *formattedPath);
+static int  countDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader);
 static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *directoryReader, entry_t entries[], char *path);
 static void printDirectoryEntries(entry_t entries[], int numEntries);
-static void formatDirectoryParmeter(char *path, char *formattedPath);
-static int qsortCompareName(const void *a, const void *b);
-static int qsortCompareSize(const void *a, const void *b);
+static int  qsortCompareName(const void *a, const void *b);
+static int  qsortCompareSize(const void *a, const void *b);
 static void sortEntries(entry_t entries[], int numEntries);
 static char *formatColor(mode_t entryMode);
+static char *getUserName(uid_t uid);
+static char *getGroupName(gid_t gid);
 
 static option_param_t options;
 static int numOfDirectoryParms;
@@ -36,13 +39,15 @@ int main(int argc, char **argv)
 
     options.orderBySize = 0;
     options.showAll = 0;
+    options.longFormat = 0;
     toggleOptions(argc, argv);
 
     numOfDirectoryParms = argc - optind;
     do
     {   
         processLoop(argv[optind]);
-        printf("\n\n");
+        if(numOfDirectoryParms > 1)
+            printf("\n");
         numOfDirectoryParms = argc - ++optind;
     } while (numOfDirectoryParms > 0);
     
@@ -53,7 +58,7 @@ static void toggleOptions(int argc, char **argv)
 {
     int c;
 
-    while((c = getopt(argc, argv, "Sa")) != -1){
+    while((c = getopt(argc, argv, "Sal")) != -1){
         switch (c)
         {
         case 'S':
@@ -62,8 +67,11 @@ static void toggleOptions(int argc, char **argv)
         case 'a':
             options.showAll = 1;
             break;
+        case 'l':
+            options.longFormat = 1;
+            break;
         default:
-            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S - Sort by Size, a - show all. \n");
+            fprintf(stderr, "Unrecognized option parameter(s). Supported parameters: S - Sort by Size, a - show all, l - long format. \n");
             break;
         }
 
@@ -139,11 +147,20 @@ static void sortEntries(entry_t entries[], int numEntries)
 
 static void printDirectoryEntries(entry_t entries[], int numEntries)
 {
-    char *color;
+    char *color, *userName, *groupName;    
+
     for(int i = 0; i < numEntries; i++){
+        printf("%s", WHITE);
+
+        if(options.longFormat){
+            userName = getUserName(entries[i].uid);
+            groupName = getGroupName(entries[i].gid);
+            printf("%s %s %10d", userName, groupName, (int) entries[i].fileSize);
+        }
+
         if(*entries[i].fileName != '.' || options.showAll){
             color = formatColor(entries[i].mode);
-            printf("%s %10d %s %s \n", WHITE, (int) entries[i].fileSize, color, entries[i].fileName);
+            printf("%s %s \n", color, entries[i].fileName);
         }
     }
 }
@@ -167,13 +184,28 @@ static char *formatColor(mode_t entryMode)
     if(S_ISDIR(entryMode)){
         return BLUE;
     }
+    if(S_ISLNK(entryMode)){
+        return CYAN;
+    }
     if(entryMode & S_IXUSR){
         return GREEN;
     }
     if(S_ISREG(entryMode)){
         return WHITE;
     }
-    if(S_ISLNK(entryMode)){
-        return CYAN;
-    }
+}
+
+static char *getUserName(uid_t uid)
+{
+    struct passwd *user;
+    user = getpwuid(uid);
+    return user->pw_name;
+}
+
+static char *getGroupName(gid_t gid)
+{
+    struct group *group;
+    group = getgrgid(gid);
+    return group->gr_name;
+
 }

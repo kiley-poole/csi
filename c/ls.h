@@ -8,7 +8,9 @@
 #include <sys/stat.h>
 #include <fcntl.h> 
 #include <unistd.h>
-
+#include <pwd.h>
+#include <grp.h>
+#include <sys/types.h>
 
 #define WHITE  "\033[0;37m"
 #define CYAN   "\033[0;36m"
