@@ -2,8 +2,12 @@
 
 typedef struct 
 {
-    int fileSize;
-    char fileName[NAME_MAX];
+    char   fileName[NAME_MAX];
+    off_t  fileSize;
+    mode_t mode;    
+    gid_t  gid;
+    uid_t  uid;
+
 } entry_t;
 
 typedef struct
@@ -22,6 +26,7 @@ static void formatDirectoryParmeter(char *path, char *formattedPath);
 static int qsortCompareName(const void *a, const void *b);
 static int qsortCompareSize(const void *a, const void *b);
 static void sortEntries(entry_t entries[], int numEntries);
+static char *formatColor(mode_t entryMode);
 
 static option_param_t options;
 static int numOfDirectoryParms;
@@ -80,6 +85,7 @@ static void processLoop(char *path)
     rewinddir(directoryPointer); 
     populateDirectoryEntries(directoryPointer, directoryReader, entries, formattedPath);
     sortEntries(entries, numEntries);
+    printf("%s\n", formattedPath);
     printDirectoryEntries(entries, numEntries);
     closedir(directoryPointer);
 }
@@ -114,6 +120,9 @@ static void populateDirectoryEntries(DIR *directoryPointer, struct dirent *direc
         sprintf(full_name, "%s%s", path, entries->fileName);
         stat(full_name, &stat_buf);
         entries->fileSize = stat_buf.st_size;
+        entries->mode = stat_buf.st_mode;
+        entries->gid = stat_buf.st_gid;
+        entries->uid = stat_buf.st_uid;
         entries++;
     }
 }
@@ -130,9 +139,11 @@ static void sortEntries(entry_t entries[], int numEntries)
 
 static void printDirectoryEntries(entry_t entries[], int numEntries)
 {
+    char *color;
     for(int i = 0; i < numEntries; i++){
         if(*entries[i].fileName != '.' || options.showAll){
-            printf("%10d %s \n", entries[i].fileSize, entries[i].fileName);
+            color = formatColor(entries[i].mode);
+            printf("%s %10d %s %s \n", WHITE, (int) entries[i].fileSize, color, entries[i].fileName);
         }
     }
 }
@@ -149,4 +160,20 @@ static int qsortCompareSize(const void *a, const void *b)
     entry_t *entryA = (entry_t *)a;
     entry_t *entryB = (entry_t *)b;
     return (entryA->fileSize - entryB->fileSize);
+}
+
+static char *formatColor(mode_t entryMode)
+{
+    if(S_ISDIR(entryMode)){
+        return BLUE;
+    }
+    if(entryMode & S_IXUSR){
+        return GREEN;
+    }
+    if(S_ISREG(entryMode)){
+        return WHITE;
+    }
+    if(S_ISLNK(entryMode)){
+        return CYAN;
+    }
 }
