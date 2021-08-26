@@ -8,7 +8,7 @@ typedef struct
     gid_t  gid;
     uid_t  uid;
     blkcnt_t blocks;
-    struct timespec modTime;
+    time_t modTime;
 
 } entry_t;
 
@@ -33,7 +33,7 @@ static void sortEntries(entry_t entries[], int numEntries);
 static char *formatColor(mode_t entryMode);
 static char *getUserName(uid_t uid);
 static char *getGroupName(gid_t gid);
-static char *getDateTime(struct timespec modTime);
+static char *getDateTime(time_t modTime);
 static void printPermissions(mode_t entryMode);
 
 static option_param_t options;
@@ -145,7 +145,7 @@ static int populateDirectoryEntries(DIR *directoryPointer, struct dirent *direct
         entries->mode = stat_buf.st_mode;
         entries->gid = stat_buf.st_gid;
         entries->uid = stat_buf.st_uid;
-        entries->modTime = stat_buf.st_mtim;
+        entries->modTime = stat_buf.st_mtime;
         entries->blocks = stat_buf.st_blocks / 2;
         totalBlocks += stat_buf.st_blocks / 2;
         entries++;
@@ -234,10 +234,10 @@ static char *getGroupName(gid_t gid)
     return group->gr_name;
 }
 
-static char *getDateTime(struct timespec modTime)
+static char *getDateTime(time_t modTime)
 {
     char *stringTime;
-    strftime(stringTime, 100, "%b %y %H:%M", localtime(&modTime.tv_sec));
+    strftime(stringTime, 100, "%b %y %H:%M", localtime(&modTime));
     return stringTime;
 }
 

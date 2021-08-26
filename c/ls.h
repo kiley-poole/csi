@@ -12,6 +12,7 @@
 #include <grp.h>
 #include <sys/types.h>
 #include <time.h>
+#include <limits.h>
 
 #define WHITE  "\033[0;37m"
 #define CYAN   "\033[0;36m"
